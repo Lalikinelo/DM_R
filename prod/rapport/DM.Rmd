@@ -2,7 +2,9 @@
 title: "Devoir Maison R"
 author: "Larry"
 date: "27/09/2021"
-output: html_document
+output: 
+  html_document:
+     css: rapport.css
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -13,8 +15,8 @@ knitr::opts_chunk$set(
 library(dplyr)
 library(stringr)
 
-APE_Type=read.csv("C:/Users/Larry/Documents/DM R/Data/APE_Type.csv")
-data42=read.csv("C:/Users/Larry/Documents/DM R/Data/geo_siret_42.csv")
+APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/DM_R-main/data/APE_Type.csv")
+data42=read.csv("E:/Geonum/M2/R/DM_R-main/DM_R-main/data/geo_siret_42.csv")
 ```
 # 3.1 Mise en place
 
@@ -117,15 +119,14 @@ Les communes qui comptent le plus d'entreprises sont :
 ```{r fonction, echo=TRUE, message=FALSE, warning=FALSE}
 get_clean_data  <-function(num_departement){
   
-  APE_Type=read.csv("C:/Users/Larry/Documents/DM R/Data/APE_Type.csv")
+  APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/DM_R-main/data/APE_Type.csv")
   
   # Vérification de l'existence de données pour le numéro de département passé en argument
-  if (!file.exists(paste("C:/Users/Larry/Documents/DM R/Data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))){
+  if (!file.exists(paste("E:/Geonum/M2/R/DM_R-main/DM_R-main/data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))){
     message("No data available, try another departement number")
-    return(FALSE)
     } 
   else{    
-     data_departement=read.csv(paste("C:/Users/Larry/Documents/DM R/Data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))
+    data_departement=read.csv(paste("E:/Geonum/M2/R/DM_R-main/DM_R-main/data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))
      
     # modification du code pour avoir une correspondance avec la base APE_Type
     data_departement$code = substring(data_departement$activitePrincipaleEtablissement , 1, 4)
@@ -145,10 +146,11 @@ get_clean_data  <-function(num_departement){
     return(alim_departement)
   }
 }
-#test1: No data for this departement number
+#test1: Récupère les données du dpt 24 (aucune données)
 get_clean_data("24")
-#test2: data Ok for this departement number
-get_clean_data("42")
+#test2: Recupere les données du dpt 42 (données présentes)
+print(paste("il y a ",as.character(nrow(get_clean_data("42")))," lignes dans les données geo_siret_42" ,sep = "", collapse = NULL))
+
 ```
 
 ## 3.3.2 Itération
@@ -161,17 +163,10 @@ get_clean_data("42")
 num_Departement_RA= c("01","38","42","43","69")
 alimRA_entr=NULL
 
-for (i in 1:5){
+for (i in 1:5)
+  {
   alimRA_entr=bind_rows(alimRA_entr,get_clean_data(num_Departement_RA[i]))
-  dim(alimRA_entr)
-}
-
-
+  print(paste("geo_siret_",num_Departement_RA[i]," ajouté. Le nombre de lignes de alimRA_entr est : ",nrow(alimRA_entr),sep = "", collapse = NULL))
+  }
 
 ```
-
-
-
-
-
-
