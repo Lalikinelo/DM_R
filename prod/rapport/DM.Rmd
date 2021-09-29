@@ -158,6 +158,9 @@ print(paste("il y a ",as.character(nrow(get_clean_data("42")))," lignes dans les
 - Appelez cette fonction de manière itérative pour chacun des départements cités ci-dessus. Vous pouvez pour ce faire soit écrire une boucle for, soit utiliser la fonction map() du package purrr. 
 - A partir des 5 jeux de données obtenus vous créerez un seul et même jeu de données alimRA_entr (données pour l’ancienne région Rhône-Alpes, où 1 ligne=1 entreprise).
 
+***** A REFAIRE AVEC LA FONCTION MAP ****
+liste avec les chemins vers les csv puis map(,read_csv)
+
 
 ```{r itération, echo=TRUE, message=FALSE, warning=FALSE}
 num_Departement_RA= c("01","38","42","43","69")
