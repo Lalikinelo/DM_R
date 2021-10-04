@@ -1,0 +1,254 @@
+ ---
+title: "Devoir Maison R"
+author: "Larry"
+date: "27/09/2021"
+output: 
+  html_document:
+     css: rapport.css
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(dplyr)
+library(stringr)
+library(readr)
+
+APE_Type=read_csv("data/APE_Type.csv")
+data42=read_csv("data/geo_siret_42.csv")
+```
+# 3.1 Mise en place
+
+## 3.1.3 Code et types d’activités => commerces alimentaires
+- Nombre d’entreprises ayant un nom (enseigne1Etablissement) qui comprend le terme “BOULANGERIE”: 
+
+```{r Nb_boulangeries, echo=TRUE, message=FALSE, warning=FALSE}
+nrow(filter(data42,str_detect(enseigne1Etablissement,"BOULANGERIE"))) 
+```
+
+- Ajoutez une variable Code à votre table en ne conservant que les quatre premiers caractères de la variable activitePrincipaleEtablissement
+
+```{r ajout_code, echo=TRUE, message=FALSE, warning=FALSE}
+ncol(data42)
+data42$code = substring(data42$activitePrincipaleEtablissement , 1, 4)
+ncol(data42)
+head(data42$code)
+```
+
+
+- Filtrez les lignes de data42 pour ne retenir que celles pour lesquelles l’APE correspond aux commerces “alimentaires” -alimentation, boisson, restaurant, bar
+```{r filter_code, echo=TRUE, message=FALSE, warning=FALSE}
+nrow(data42) # nb lignes avant filtrage
+alim42=filter(data42, data42$code %in% APE_Type$Code)
+nrow(alim42) # nb lignes après filtrage
+```
+
+
+- Stockez le résultat de ces opérations dans un objet alim42 (+conversion de la variable "code")
+
+```{r save_alim42, echo=TRUE, message=FALSE, warning=FALSE}
+
+typeof(alim42$code)
+alim42$code=as.double(alim42$code)
+typeof(alim42$code)
+```
+
+- Réalisez une jointure entre data42_alim (variable codeAPE) et APE_Type (variable Code), de manière à compléter alim42 avec les types de commerces
+
+```{r jointure_code, echo=TRUE, message=FALSE, warning=FALSE}
+
+dim(alim42)
+alim42=left_join(alim42,APE_Type,by = c("code" = "Code"))
+dim(alim42)
+```
+
+## 3.1.4 Résumé, classement
+
+- Quelles sont les 3 communes de votre base de données qui comptent le plus de magasins alimentaires?
+
+```{r 3_communes, echo=TRUE, message=FALSE, warning=FALSE}
+head(arrange(summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n()),desc(nb_com_alimentaire)),3)
+```
+- Pour les communes qui ne comptent qu’un seul commerce “alimentaire”, de quel type est-il, le plus fréquemment?
+
+```{r plus_freq_des_commerces_uniques, message=FALSE, warning=FALSE}
+
+test=summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n())
+test= filter(test,nb_com_alimentaire==1)
+
+test=left_join(test,select(alim42,libelleCommuneEtablissement, TypeAbreg))
+
+test=summarise(group_by(test,TypeAbreg),freq_alim_uniq=n())
+head(arrange(test,desc(freq_alim_uniq)),1)
+
+```
+- Quelles communes de plus de 100 commerces comptent au moins 10 commerces de type “viande”?
+
+```{r 10_com_de_viandes_dans_villes_de_100_com}
+test=summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n())
+test= filter(test,nb_com_alimentaire>100)
+test=left_join(test,select(alim42,libelleCommuneEtablissement, TypeAbreg))
+
+test= filter(test,TypeAbreg=="viande")
+test=summarise(group_by(test,libelleCommuneEtablissement),nb_com_viande=n())
+test= filter(test,nb_com_viande>=10)
+print(arrange(test,desc(nb_com_viande)))
+```
+
+# 3.2 Rapport, statistiques descriptives
+
+- Rédigez un petit paragraphe pour nommer les 3 communes qui comptent le plus d’entreprises (exercice précédent) en utilisant l’insertion d’“inline chunks”.
+
+```{r top_3_commune_max_entr, message=FALSE, warning=FALSE}
+test=summarise(group_by(data42,libelleCommuneEtablissement),nb_entreprise=n())
+test=head(arrange(test,desc(nb_entreprise)),3)
+
+```
+
+
+Les communes qui comptent le plus d'entreprises sont :  
+1. `r test$libelleCommuneEtablissement[1]`  
+2.`r test$libelleCommuneEtablissement[2]`  
+3. `r test$libelleCommuneEtablissement[3]`  
+
+
+# 3.3 Programmation: automatisation pour plusieurs départements
+
+## 3.3.1 Fonction
+
+```{r fonction, echo=TRUE, message=FALSE, warning=FALSE}
+get_clean_data  <-function(num_departement){
+  
+  APE_Type=read.csv("data/APE_Type.csv")
+  
+  # Vérification de l'existence de données pour le numéro de département passé en argument
+  if (!file.exists(paste("data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))){
+    message("No data available, try another departement number")
+    } 
+  else
+    {    
+    data_departement=read_csv(paste("data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))
+     
+    # modification du code pour avoir une correspondance avec la base APE_Type
+    data_departement$code = substring(data_departement$activitePrincipaleEtablissement , 1, 4)
+  
+  # Recupération des données concernant l'alimentation 
+    alim_departement=filter(data_departement, data_departement$code %in% APE_Type$Code)
+  
+  # conversion du champ code de string à double
+    alim_departement$code=as.double(alim_departement$code)
+  
+  # conversion du champ code de string à double
+    alim_departement$numeroVoieEtablissement=as.integer(alim_departement$numeroVoieEtablissement)
+  
+  # Récupération du Type de commerce depuis la base APE_Type
+    alim_departement=left_join(alim_departement,APE_Type,by = c("code" = "Code"))
+  
+    if(typeof(alim_departement$codeCommuneEtablissement)!="double")
+      {
+        alim_departement$codeCommuneEtablissement=as.double(alim_departement$codeCommuneEtablissement)
+    }
+    
+    if(typeof(alim_departement$codePostalEtablissement)!="double")
+      {
+        alim_departement$codePostalEtablissement=as.double(alim_departement$codePostalEtablissement)
+    }
+    
+    if(typeof(alim_departement$codeCedexEtablissement)!="double")
+      {
+        alim_departement$codeCedexEtablissement=as.double(alim_departement$codeCedexEtablissement)
+    }
+    
+    return(alim_departement)
+  }
+}
+#test1: Récupère les données du dpt 24 (aucune données)
+get_clean_data("24")
+#test2: Recupere les données du dpt 42 (données présentes)
+print(paste("il y a ",as.character(nrow(get_clean_data("42")))," lignes dans les données geo_siret_42" ,sep = "", collapse = NULL))
+
+```
+
+## 3.3.2 Itération
+
+- Appelez cette fonction de manière itérative pour chacun des départements cités ci-dessus. Vous pouvez pour ce faire soit écrire une boucle for, soit utiliser la fonction map() du package purrr. 
+- A partir des 5 jeux de données obtenus vous créerez un seul et même jeu de données alimRA_entr (données pour l’ancienne région Rhône-Alpes, où 1 ligne=1 entreprise).
+
+
+```{r itération, echo=TRUE, message=FALSE, warning=FALSE}
+num_Departement_RA= c("01","38","42","43","69")
+alimRA_entr=NULL
+
+for (i in 1:5)
+  {
+  alimRA_entr=bind_rows(alimRA_entr,get_clean_data(num_Departement_RA[i]))
+  print(paste("geo_siret_",num_Departement_RA[i]," ajouté. Le nombre de lignes de alimRA_entr est : ",nrow(alimRA_entr),sep = "", collapse = NULL))
+  }
+
+```
+
+## 3.3.3 If et écriture de fichier
+
+- exportez alimRA_entr dans un fichier alimRA_entr.csv
+- entourez la boucle for d’une structure conditionnelle if de sorte que la boucle ne soit exécutée que si le fichier alimRA_entr.csv n’existe pas
+- écrivez à la suite la commande qui servira à lire alimRA_entr.csv à chaque “tricotage” de votre rapport Rmarkdown.
+
+```{r export csv, message=FALSE, warning=FALSE}
+if(!file.exists("data/alimRA_entr.csv"))
+  {
+  write.csv(alimRA_entr,"data/alimRA_entr.csv", row.names = FALSE)
+  }else
+  {
+  alimRA_entr=APE_Type=read_csv("data/alimRA_entr.csv")
+  }
+
+
+
+```
+# 3.4 Résumé par commune et type de commerce
+
+- Agrégez la table alimRA_entr par commune et type de commerce, pour créer une table alimRA_typeCom (où une ligne correspondra à un type de commerce pour une commune):
+
+- Une variable nInCom correspondant au nombre de commerces par commune
+
+- Une variable nInTypeCom correspondant au nombre de commerces par type et commune
+
+- Une variable propInTypeCom correspondant à la proportion d’un type de commerce dans une commune
+
+- Quelles communes comptant plus de 100 commerces comptes au moins 5% de commerces de type “viande”?
+
+```{r}
+
+alimRA_typeCom = summarise(group_by(alimRA_entr,TypeAbreg,libelleCommuneEtablissement),nInTypeCom=n())
+
+alimRA_nInCom= summarise(group_by(alimRA_entr,libelleCommuneEtablissement),nInCom=n())
+
+alimRA_typeCom= arrange (left_join(alimRA_typeCom,select(alimRA_nInCom,libelleCommuneEtablissement, nInCom)),libelleCommuneEtablissement)
+
+alimRA_typeCom$propInTypeCom = alimRA_typeCom$nInTypeCom /alimRA_typeCom$nInCom
+
+print(filter(alimRA_typeCom,nInCom>100 & propInTypeCom>=0.05 & TypeAbreg=="viande"))
+
+```
+
+
+## 3.4.2 Graphique
+
+- Réalisez un graphique montrant les proportions des différents types de commerces pour LYON 4EME et LYON 8EME.
+
+```{r}
+library(ggplot2)
+
+#print(filter(alimRA_typeCom,libelleCommuneEtablissement=="LYON 4EME" | libelleCommuneEtablissement=="LYON 3EME" ))
+
+
+ggplot(data=filter(alimRA_typeCom,libelleCommuneEtablissement=="LYON 4EME" | libelleCommuneEtablissement=="LYON 8EME" ), aes(x=TypeAbreg, y=propInTypeCom, fill=libelleCommuneEtablissement)) +
+geom_bar(stat="identity", position=position_dodge())
+
+```
+
+
+
+
