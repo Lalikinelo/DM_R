@@ -15,8 +15,8 @@ knitr::opts_chunk$set(
 library(dplyr)
 library(stringr)
 library(purrr)
-APE_Type=read.csv("C:/Users/Larry/Documents/DM R/Data/APE_Type.csv")
-data42=read.csv("C:/Users/Larry/Documents/DM R/Data/geo_siret_42.csv")
+APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/data/APE_Type.csv")
+data42=read.csv("E:/Geonum/M2/R/DM_R-main/data/geo_siret_42.csv")
 ```
 # 3.1 Mise en place
 
@@ -74,7 +74,6 @@ test=summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n
 test= filter(test,nb_com_alimentaire==1)
 test=left_join(test,select(alim42,libelleCommuneEtablissement, TypeAbreg))
 print(nrow(test))
-
 test=summarise(group_by(test,TypeAbreg),freq_alim_uniq=n())
 head(arrange(test,desc(freq_alim_uniq)),1)
 ```
@@ -112,14 +111,14 @@ Les communes qui comptent le plus d'entreprises sont :
 ```{r fonction, echo=TRUE, message=FALSE, warning=FALSE}
 get_clean_data  <-function(num_departement){
   
-  APE_Type=read.csv("C:/Users/Larry/Documents/DM R/Data/APE_Type.csv")
+  APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/data/APE_Type.csv")
   
   # Vérification de l'existence de données pour le numéro de département passé en argument
-  if (!file.exists(paste("C:/Users/Larry/Documents/DM R/Data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))){
+  if (!file.exists(paste("E:/Geonum/M2/R/DM_R-main/data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))){
     message("No data available, try another departement number")
     } 
   else{    
-    data_departement=read.csv(paste("C:/Users/Larry/Documents/DM R/Data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))
+    data_departement=read.csv(paste("E:/Geonum/M2/R/DM_R-main/data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))
      
     # modification du code pour avoir une correspondance avec la base APE_Type
     data_departement$code = substring(data_departement$activitePrincipaleEtablissement , 1, 4)
@@ -156,40 +155,31 @@ print(paste("il y a ",as.character(nrow(get_clean_data("42")))," lignes dans les
 ```{r itération, echo=TRUE, message=FALSE, warning=FALSE}
 num_Departement_RA= c("01","38","42","43","69")
 alimRA_entr=NULL
-
-
 # ******************* Methode avec boucle for *****************
-
 #for (i in 1:5)
 #  {
 #  alimRA_entr=bind_rows(alimRA_entr,get_clean_data(num_Departement_RA[i]))
 #  print(paste("geo_siret_",num_Departement_RA[i]," ajouté. Le nombre de lignes de alimRA_entr est : ",nrow(alimRA_entr),sep = "", collapse = NULL))
 #  }
-
-
 # ******************* Methode avec map *****************
-
 alimRA_entr=map(num_Departement_RA,get_clean_data)
 alimRA_entr=bind_rows(alimRA_entr)
 nrow(alimRA_entr)
 ```
 ```
-
 ## 3.3.3 If et écriture de fichier
-
 - exportez alimRA_entr dans un fichier alimRA_entr.csv
 - entourez la boucle for d’une structure conditionnelle if de sorte que la boucle ne soit exécutée que si le fichier alimRA_entr.csv n’existe pas
 - écrivez à la suite la commande qui servira à lire alimRA_entr.csv à chaque “tricotage” de votre rapport Rmarkdown.
-
 ```{r export csv, message=FALSE, warning=FALSE}
-if(!file.exists("C:/Users/Larry/Documents/DM R/Data/alimRA_entr.csv"))
+if(!file.exists("E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv"))
   {
-  write.csv(alimRA_entr,"C:/Users/Larry/Documents/DM R/Data/alimRA_entr.csv", row.names = FALSE)
+  write.csv(alimRA_entr,"E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv", row.names = FALSE)
   }else
   {
-  alimRA_entr=APE_Type=read.csv("C:/Users/Larry/Documents/DM R/Data/alimRA_entr.csv")
+  alimRA_entr=APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv")
   }
-  if(file.exists("C:/Users/Larry/Documents/DM R/Data/alimRA_entr.csv"))
+  if(file.exists("E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv"))
   {
   print("[TEST] le fichier csv existe...")
   }
@@ -207,7 +197,7 @@ if(!file.exists("C:/Users/Larry/Documents/DM R/Data/alimRA_entr.csv"))
 - Quelles communes comptant plus de 100 commerces comptes au moins 5% de commerces de type “viande”?
 
 
-```{r}
+```{r resume, echo=TRUE, message=FALSE, warning=FALSE}
 alimRA_typeCom = summarise(group_by(alimRA_entr,TypeAbreg,libelleCommuneEtablissement),nInTypeCom=n())
 alimRA_nInCom= summarise(group_by(alimRA_entr,libelleCommuneEtablissement),nInCom=n())
 alimRA_typeCom= arrange (left_join(alimRA_typeCom,select(alimRA_nInCom,libelleCommuneEtablissement, nInCom)),libelleCommuneEtablissement)
@@ -220,13 +210,12 @@ print(filter(alimRA_typeCom,nInCom>100 & propInTypeCom>=0.05 & TypeAbreg=="viand
 
 - Réalisez un graphique montrant les proportions des différents types de commerces pour LYON 4EME et LYON 8EME.
 
-```{r}
+```{r graph2, echo=TRUE, message=FALSE, warning=FALSE}
 library(ggplot2)
 #print(filter(alimRA_typeCom,libelleCommuneEtablissement=="LYON 4EME" | libelleCommuneEtablissement=="LYON 3EME" ))
 ggplot(data=filter(alimRA_typeCom,libelleCommuneEtablissement=="LYON 4EME" | libelleCommuneEtablissement=="LYON 8EME" ), aes(x=TypeAbreg, y=propInTypeCom*100, fill=libelleCommuneEtablissement)) +
 geom_bar(stat="identity", position=position_dodge())+labs(x="Type de commerce", y="Proportion en %") 
 #+  scale_x_discrete(labels = abbreviate)
-
 ```
 
 ## 3.5 Evolution dans le temps des créations d’entreprise
@@ -238,21 +227,15 @@ geom_bar(stat="identity", position=position_dodge())+labs(x="Type de commerce", 
 - Transformez le tableau alimRA_entr en modifiant la classe de dateCreationEtablissement à l’aide d’une fonction de lubridate.
 - Ajoutez une variable annee au tableau alimRA_entr à l’aide, à nouveau, d’une des fonctions de lubridate.
 
-```{r}
+```{r lubridate, echo=TRUE, message=FALSE, warning=FALSE}
 #install.packages("lubridate")
 library(lubridate)
-
-
 print(paste("type de dateCreationEtablissement : ",class(alimRA_entr$dateCreationEtablissement),sep = "", collapse = NULL))
-
 alimRA_entr$dateCreationEtablissement=ymd(alimRA_entr$dateCreationEtablissement)
-
 print(paste("type de dateCreationEtablissement après ymd() : ",class(alimRA_entr$dateCreationEtablissement),sep = "", collapse = NULL))
-
 alimRA_entr$annee=year(alimRA_entr$dateCreationEtablissement)
-
 alimRA_entr=arrange(alimRA_entr,desc(enseigne1Etablissement))
-
+# test:
 print(head(paste( alimRA_entr$enseigne1Etablissement," SINCE ",alimRA_entr$annee,sep = "", collapse = NULL)))
 ```
 
@@ -262,13 +245,11 @@ print(head(paste( alimRA_entr$enseigne1Etablissement," SINCE ",alimRA_entr$annee
 - Créez une table alimRA_typeAn qui recense le **nombre d’entreprises par année (nInAn), et par type*année (nInTypeAn)**.
 - Filtrez les données de alimRA_typeAn pour ne garder que les entreprises dont la création correspond aux années >=1970.
 
-```{r}
-
+```{r resumeFilter, echo=TRUE, message=FALSE, warning=FALSE}
 alimRA_typeAn=left_join(summarise(group_by(alimRA_entr,annee,TypeAbreg),nInTypeAn=n()),summarise(group_by(alimRA_entr,annee),nInAn=n()),by = c("annee" = "annee"))
 
 alimRA_typeAn=filter(alimRA_typeAn,annee>=1970 & annee<2020)
 head(alimRA_typeAn)
-
 ```
 
 # 3.5.3 Graphiques: évolution du nombre d’entreprises au cours du temps
@@ -278,15 +259,9 @@ head(alimRA_typeAn)
 - Réalisez ce même graphique, mais en représentant le nombre de créations d’entreprises par année et par type, pour les 5 types comptant le plus de créations d’entreprises (au total).
 
 
-```{r}
-
-
+```{r graph, echo=TRUE, message=FALSE, warning=FALSE}
 ggplot(alimRA_typeAn, aes(x=annee, y=nInTypeAn/nInAn*100, color=TypeAbreg))+
   geom_line() +labs(y="% de chaque type",title="Evolution des proportions d’entreprises (par type) par année",color="Type d'entreprise")
-
-
-
-
 ggplot(filter(alimRA_typeAn, TypeAbreg %in% head(arrange(summarise(group_by(alimRA_typeAn,TypeAbreg),sumInTypeAn=sum(nInTypeAn)),desc(sumInTypeAn)),5)$TypeAbreg), aes(x=annee, y=nInTypeAn, color=TypeAbreg)) +
   geom_line() +labs(y="Nombre de créations",title="Evolution du nombre de créations d’entreprises par année pour les 5 types comptant le plus de créations d’entreprises au total",color="Type d'entreprise")
   
@@ -301,30 +276,31 @@ ggplot(filter(alimRA_typeAn, TypeAbreg %in% head(arrange(summarise(group_by(alim
 - Réalisez une carte montrant le semis de points correspondant aux boulangeries-pâtisseries.
 - Essayez de représenter à travers cette carte l’année de création de l’entreprise (de la manière qui vous semblera la plus pertinente).
 
-```{r}
+```{r map1, echo=TRUE, message=FALSE, warning=FALSE}
+#tuto: https://r-spatial.org/r/2018/10/25/ggplot2-sf-2.html
 #install.packages("rgeos")
 library(sf)
-library("rnaturalearth")
-library("rnaturalearthdata")
 library(rgeos)
 
 
- world = ne_countries(scale = "medium", returnclass = "sf")
 
+points = st_as_sf(filter(select(alimRA_entr,longitude,latitude,dateCreationEtablissement,TypeAbreg), !is.na(longitude) & !is.na(latitude) & latitude>40 & TypeAbreg=="boulPatiss") , coords = c("longitude", "latitude"), crs = 4326, agr = "constant")
 
-points <- st_as_sf(filter(select(alimRA_entr,longitude,latitude,dateCreationEtablissement,TypeAbreg), !is.na(longitude) & !is.na(latitude) & latitude>40 & TypeAbreg=="boulPatiss") , coords = c("longitude", "latitude"), crs = 4326, agr = "constant")
+points$decenieCreationEtablissement = toString(floor(year(ymd(points$dateCreationEtablissement))/10)*10)
 
-points$dateCreationEtablissement=year(ymd(points$dateCreationEtablissement))
+dpt=st_read(paste0("E:/Geonum/M2/R/DM_R-main/data/","dpt.shp")) %>%  st_set_crs(2154)
+dpt = st_transform(dpt, st_crs(4326))
 
- 
+library(tmap)
 
-#test=data.matrix(filter(select(alimRA_entr,longitude,latitude), #!is.na(longitude) & !is.na(latitude) & latitude>40))
+tmap_mode("view")
 
-
-#points=st_multipoint(x = test ,dim="XY")
-#ggplot(points)+geom_sf()+
-# geom_text(data = nc3_coords, aes(X, Y, label = NAME), colour = "white")
-
+tm_shape(points)+
+  tm_facets(by="decenieCreationEtablissement")+
+  tm_dots() + 
+  tm_layout(main.title="Ouverture de boulangerie dans les departements 01,38,42,43,69", main.title.color="slateblue")+
+  tm_scale_bar()+
+  tm_compass()
 ```
 
 
@@ -335,8 +311,18 @@ points$dateCreationEtablissement=year(ymd(points$dateCreationEtablissement))
 - Joignez aux communes les informations concernant les commerces (st_join()…) et calculez le nombre de commerces par commune.
 - Produisez une carte montrant le nombre de commerces par commune. Vous aurez sans doute à retravailler l’échelle colorée…
 
+```{r map2, echo=TRUE, message=FALSE, warning=FALSE}
+communes=st_read(paste0("E:/Geonum/M2/R/DM_R-main/data/","com.shp")) %>%  st_set_crs(2154)
+communes = st_transform(communes, st_crs(4326))
+tmap_mode("view")
 
-filter(departement,num_dep %in% num_Departement_RA)
-st_join(departement,points,option=count())
+commerces = st_as_sf(filter(select(alimRA_entr,longitude,latitude,siren),!is.na(longitude) & !is.na(latitude)), coords = c("longitude", "latitude"), crs = 4326, agr = "constant")
 
 
+final=summarise(group_by(st_join(communes,commerces),insee_com),n_commerce=n())
+
+tm_shape(final)+tm_polygons(col="n_commerce",style = "log10_pretty",title="Nombre de commerce par commune") +
+  tm_layout(legend.outside = TRUE)+
+  tm_scale_bar(position="center")+
+  tm_compass()
+```
