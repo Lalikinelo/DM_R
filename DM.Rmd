@@ -467,7 +467,7 @@ tm_shape(final)+
   tm_polygons(col="n_commerce",style = "log10_pretty", title="Nombre de commerces dans la commune") +
   tm_layout(legend.outside = TRUE, main.title="Commerces dans les departements 01,38,42,43,69", main.title.size=2,legend.title.size=1.5, legend.text.size=1.2,main.title.position="left", bg.color = "lightgrey", inner.margins = c(.05, .02, .02, .02))+
 tm_shape(departement)+
-  tm_borders("black", lwd = 1.2)+
+  tm_borders("black", lwd = 2)+
   tm_scale_bar(position="center")+
   tm_compass(position=c("left","top"))
 ```
