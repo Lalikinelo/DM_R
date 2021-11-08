@@ -1,10 +1,10 @@
 ---
 title: "Devoir Maison R"
-author: "Larry"
-date: "27/09/2021"
+author: "Larry Kiener"
+date: "08/11/2021"
 output: 
   html_document:
-     css: rapport.css
+     css: css/rapport.css
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -15,8 +15,17 @@ knitr::opts_chunk$set(
 library(dplyr)
 library(stringr)
 library(purrr)
-APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/data/APE_Type.csv")
-data42=read.csv("E:/Geonum/M2/R/DM_R-main/data/geo_siret_42.csv")
+library(sf)
+library(rgeos)
+library(tmap)
+library(httr)
+library(ows4R)
+library(ggplot2)
+library(lubridate)
+
+#chemin partiel grace au projet
+APE_Type=read.csv("data/APE_Type.csv")
+data42=read.csv("data/geo_siret_42.csv")
 ```
 # 3.1 Mise en place
 
@@ -24,31 +33,38 @@ data42=read.csv("E:/Geonum/M2/R/DM_R-main/data/geo_siret_42.csv")
 - Nombre d’entreprises ayant un nom (enseigne1Etablissement) qui comprend le terme “BOULANGERIE”: 
 
 ```{r Nb_boulangeries, echo=TRUE, message=FALSE, warning=FALSE}
+# Decompte des lignes apres filtrage nom contenant boulangerie
 nrow(filter(data42,str_detect(enseigne1Etablissement,"BOULANGERIE"))) 
 ```
 
 - Ajoutez une variable Code à votre table en ne conservant que les quatre premiers caractères de la variable activitePrincipaleEtablissement
 ```{r ajout_code, echo=TRUE, message=FALSE, warning=FALSE}
-ncol(data42)
+# Ajout des caracteres 1 à 4
 data42$code = substring(data42$activitePrincipaleEtablissement , 1, 4)
-ncol(data42)
-head(data42$code)
+# vérification head(data42$code)
 ```
 
 
 - Filtrez les lignes de data42 pour ne retenir que celles pour lesquelles l’APE correspond aux commerces “alimentaires” -alimentation, boisson, restaurant, bar
 ```{r filter_code, echo=TRUE, message=FALSE, warning=FALSE}
-nrow(data42) # nb lignes avant filtrage
+# nb lignes avant filtrage
+nrow(data42)
+
+# utilisation de %in% pour comparer chaque code à la liste de code de APE_Type
 alim42=filter(data42, data42$code %in% APE_Type$Code)
-nrow(alim42) # nb lignes après filtrage
+# verification du nb lignes après filtrage
+nrow(alim42)
 ```
 
 
 - Stockez le résultat de ces opérations dans un objet alim42 (+conversion de la variable "code")
 
 ```{r save_alim42, echo=TRUE, message=FALSE, warning=FALSE}
-typeof(alim42$code)
+
+# conversion
 alim42$code=as.double(alim42$code)
+
+# verification de la converion
 typeof(alim42$code)
 ```
 
@@ -56,7 +72,11 @@ typeof(alim42$code)
 
 ```{r jointure_code, echo=TRUE, message=FALSE, warning=FALSE}
 dim(alim42)
+
+# jointure
 alim42=left_join(alim42,APE_Type,by = c("code" = "Code"))
+
+# verification de l'ajout des colonnes de APE_type
 dim(alim42)
 ```
 
@@ -70,22 +90,38 @@ head(arrange(summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alime
 - Pour les communes qui ne comptent qu’un seul commerce “alimentaire”, de quel type est-il, le plus fréquemment?
 
 ```{r plus_freq_des_commerces_uniques, message=FALSE, warning=FALSE}
-test=summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n())
-test= filter(test,nb_com_alimentaire==1)
-test=left_join(test,select(alim42,libelleCommuneEtablissement, TypeAbreg))
-print(nrow(test))
-test=summarise(group_by(test,TypeAbreg),freq_alim_uniq=n())
-head(arrange(test,desc(freq_alim_uniq)),1)
+#regroupement par commun et decompte des commerces alimentaires
+commerce_alim_unique=summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n())
+
+#ne retnir que les communes avec 1 seul commerce alimentaire
+commerce_alim_unique= filter(commerce_alim_unique,nb_com_alimentaire==1)
+
+# Dans ces communes, ajout du type de commerce
+commerce_alim_unique=left_join(commerce_alim_unique,select(alim42,libelleCommuneEtablissement, TypeAbreg))
+type_le_plus_freq=summarise(group_by(commerce_alim_unique,TypeAbreg),freq_alim_uniq=n())
+#classement
+head(arrange(type_le_plus_freq,desc(freq_alim_uniq)),1)
 ```
 - Quelles communes de plus de 100 commerces comptent au moins 10 commerces de type “viande”?
 
 ```{r 10_com_de_viandes_dans_villes_de_100_com}
-test=summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n())
-test= filter(test,nb_com_alimentaire>100)
-test=left_join(test,select(filter(alim42,TypeAbreg=="viande"),libelleCommuneEtablissement, TypeAbreg))
-test=summarise(group_by(test,libelleCommuneEtablissement),nb_com_viande=n())
-test= filter(test,nb_com_viande>=10)
-print(arrange(test,desc(nb_com_viande)))
+# regroupement par commune et compte du nombre de commerces alimentaires
+com_plus_de_100=summarise(group_by(alim42,libelleCommuneEtablissement),nb_com_alimentaire=n())
+
+# que les communes avec plus de 100 commerces
+com_plus_de_100= filter(com_plus_de_100,nb_com_alimentaire>100)
+
+# Parmi les villes de plus de 100 commerce, on rattache les commerces de viande
+com_10_viande=left_join(com_plus_de_100,select(filter(alim42,TypeAbreg=="viande"),libelleCommuneEtablissement, TypeAbreg))
+
+#Decompte du nombre de commerces de viande
+com_10_viande=summarise(group_by(com_10_viande,libelleCommuneEtablissement),nb_com_viande=n())
+
+#Filtre des communes qui ont plus de 10 commerces de viande
+com_10_viande= filter(com_10_viande,nb_com_viande>=10)
+
+#classement
+print(arrange(com_10_viande,desc(nb_com_viande)))
 ```
 
 # 3.2 Rapport, statistiques descriptives
@@ -93,37 +129,43 @@ print(arrange(test,desc(nb_com_viande)))
 - Rédigez un petit paragraphe pour nommer les 3 communes qui comptent le plus d’entreprises (exercice précédent) en utilisant l’insertion d’“inline chunks”.
 
 ```{r top_3_commune_max_entr, message=FALSE, warning=FALSE}
-test=summarise(group_by(data42,libelleCommuneEtablissement),nb_entreprise=n())
-test=head(arrange(test,desc(nb_entreprise)),3)
+#Decompte du nobre d'entreprises
+com_nb_entr=summarise(group_by(data42,libelleCommuneEtablissement),nb_entreprise=n())
+
+#classement
+com_nb_entr=head(arrange(com_nb_entr,desc(nb_entreprise)),3)
 ```
 
 
 Les communes qui comptent le plus d'entreprises sont :  
-1. `r test$libelleCommuneEtablissement[1]`  
-2.`r test$libelleCommuneEtablissement[2]`  
-3. `r test$libelleCommuneEtablissement[3]`  
+1. `r com_nb_entr$libelleCommuneEtablissement[1]`  
+2.`r com_nb_entr$libelleCommuneEtablissement[2]`  
+3. `r com_nb_entr$libelleCommuneEtablissement[3]`  
 
 
 # 3.3 Programmation: automatisation pour plusieurs départements
 
 ## 3.3.1 Fonction
 
+Réutilisez les commandes que vous avez mises au point sur data42 pour écrire une fonction get_clean_data() qui réalisera l’ensemble de ces opérations sur le département de votre choix. L’input correspondra à un numéro de département (c’est-à-dire que vous pourrez utiliser la fonction en faisant, par exemple get_clean_data("01")).
+
 ```{r fonction, echo=TRUE, message=FALSE, warning=FALSE}
 get_clean_data  <-function(num_departement){
   
-  APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/data/APE_Type.csv")
+  APE_Type=read.csv("data/APE_Type.csv")
   
   # Vérification de l'existence de données pour le numéro de département passé en argument
-  if (!file.exists(paste("E:/Geonum/M2/R/DM_R-main/data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))){
+  if (!file.exists(paste("data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))){
     message("No data available, try another departement number")
     } 
-  else{    
-    data_departement=read.csv(paste("E:/Geonum/M2/R/DM_R-main/data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))
+  else{
+    #Lecture du csv avec le bon numero de departement
+    data_departement=read.csv(paste("data/geo_siret_",num_departement,".csv",sep = "", collapse = NULL))
      
     # modification du code pour avoir une correspondance avec la base APE_Type
     data_departement$code = substring(data_departement$activitePrincipaleEtablissement , 1, 4)
   
-  # Recupération des données concernant l'alimentation 
+    # Recupération des données concernant l'alimentation 
     alim_departement=filter(data_departement, data_departement$code %in% APE_Type$Code)
   
   # conversion du champ code de string à double
@@ -138,9 +180,10 @@ get_clean_data  <-function(num_departement){
     return(alim_departement)
   }
 }
-#test1: Récupère les données du dpt 24 (aucune données)
+#test1: avec un departement incorrect
 get_clean_data("24")
-#test2: Recupere les données du dpt 42 (données présentes)
+
+#test2: avec un departement correct
 print(paste("il y a ",as.character(nrow(get_clean_data("42")))," lignes dans les données geo_siret_42" ,sep = "", collapse = NULL))
 ```
 
@@ -154,6 +197,7 @@ print(paste("il y a ",as.character(nrow(get_clean_data("42")))," lignes dans les
 
 ```{r itération, echo=TRUE, message=FALSE, warning=FALSE}
 num_Departement_RA= c("01","38","42","43","69")
+
 alimRA_entr=NULL
 # ******************* Methode avec boucle for *****************
 #for (i in 1:5)
@@ -161,29 +205,32 @@ alimRA_entr=NULL
 #  alimRA_entr=bind_rows(alimRA_entr,get_clean_data(num_Departement_RA[i]))
 #  print(paste("geo_siret_",num_Departement_RA[i]," ajouté. Le nombre de lignes de alimRA_entr est : ",nrow(alimRA_entr),sep = "", collapse = NULL))
 #  }
+
 # ******************* Methode avec map *****************
 alimRA_entr=map(num_Departement_RA,get_clean_data)
 alimRA_entr=bind_rows(alimRA_entr)
 nrow(alimRA_entr)
 ```
-```
+
 ## 3.3.3 If et écriture de fichier
 - exportez alimRA_entr dans un fichier alimRA_entr.csv
 - entourez la boucle for d’une structure conditionnelle if de sorte que la boucle ne soit exécutée que si le fichier alimRA_entr.csv n’existe pas
 - écrivez à la suite la commande qui servira à lire alimRA_entr.csv à chaque “tricotage” de votre rapport Rmarkdown.
+
 ```{r export csv, message=FALSE, warning=FALSE}
-if(!file.exists("E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv"))
+if(!file.exists("data/alimRA_entr.csv"))
   {
-  write.csv(alimRA_entr,"E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv", row.names = FALSE)
+  write.csv(alimRA_entr,"data/alimRA_entr.csv", row.names = FALSE)
   }else
-  {
-  alimRA_entr=APE_Type=read.csv("E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv")
-  }
-  if(file.exists("E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv"))
+    {
+    alimRA_entr=APE_Type=read.csv("data/alimRA_entr.csv")
+    }
+if(file.exists("data/alimRA_entr.csv"))
   {
   print("[TEST] le fichier csv existe...")
   }
 ```
+
 # 3.4 Résumé par commune et type de commerce
 
 - Agrégez la table alimRA_entr par commune et type de commerce, pour créer une table alimRA_typeCom (où une ligne correspondra à un type de commerce pour une commune):
@@ -198,10 +245,19 @@ if(!file.exists("E:/Geonum/M2/R/DM_R-main/data/alimRA_entr.csv"))
 
 
 ```{r resume, echo=TRUE, message=FALSE, warning=FALSE}
+#Decompte nombre de commerces par type et commune
 alimRA_typeCom = summarise(group_by(alimRA_entr,TypeAbreg,libelleCommuneEtablissement),nInTypeCom=n())
+
+#nombre de commerces par commune
 alimRA_nInCom= summarise(group_by(alimRA_entr,libelleCommuneEtablissement),nInCom=n())
+
+# Ajout de nInCom
 alimRA_typeCom= arrange (left_join(alimRA_typeCom,select(alimRA_nInCom,libelleCommuneEtablissement, nInCom)),libelleCommuneEtablissement)
+
+# calcul proportion
 alimRA_typeCom$propInTypeCom = alimRA_typeCom$nInTypeCom /alimRA_typeCom$nInCom
+
+# selection des moins de 5%
 print(filter(alimRA_typeCom,nInCom>100 & propInTypeCom>=0.05 & TypeAbreg=="viande"))
 ```
 
@@ -211,8 +267,9 @@ print(filter(alimRA_typeCom,nInCom>100 & propInTypeCom>=0.05 & TypeAbreg=="viand
 - Réalisez un graphique montrant les proportions des différents types de commerces pour LYON 4EME et LYON 8EME.
 
 ```{r graph2, echo=TRUE, message=FALSE, warning=FALSE}
-library(ggplot2)
-#print(filter(alimRA_typeCom,libelleCommuneEtablissement=="LYON 4EME" | libelleCommuneEtablissement=="LYON 3EME" ))
+
+#TEST print(filter(alimRA_typeCom,libelleCommuneEtablissement=="LYON 4EME" | libelleCommuneEtablissement=="LYON 3EME" ))
+
 ggplot(data=filter(alimRA_typeCom,libelleCommuneEtablissement=="LYON 4EME" | libelleCommuneEtablissement=="LYON 8EME" ), aes(x=TypeAbreg, y=propInTypeCom*100, fill=libelleCommuneEtablissement)) +
 geom_bar(stat="identity", position=position_dodge())+labs(x="Type de commerce", y="Proportion en %") 
 #+  scale_x_discrete(labels = abbreviate)
@@ -228,8 +285,7 @@ geom_bar(stat="identity", position=position_dodge())+labs(x="Type de commerce", 
 - Ajoutez une variable annee au tableau alimRA_entr à l’aide, à nouveau, d’une des fonctions de lubridate.
 
 ```{r lubridate, echo=TRUE, message=FALSE, warning=FALSE}
-#install.packages("lubridate")
-library(lubridate)
+
 print(paste("type de dateCreationEtablissement : ",class(alimRA_entr$dateCreationEtablissement),sep = "", collapse = NULL))
 alimRA_entr$dateCreationEtablissement=ymd(alimRA_entr$dateCreationEtablissement)
 print(paste("type de dateCreationEtablissement après ymd() : ",class(alimRA_entr$dateCreationEtablissement),sep = "", collapse = NULL))
@@ -263,7 +319,7 @@ head(alimRA_typeAn)
 ggplot(alimRA_typeAn, aes(x=annee, y=nInTypeAn/nInAn*100, color=TypeAbreg))+
   geom_line() +labs(y="% de chaque type",title="Evolution des proportions d’entreprises (par type) par année",color="Type d'entreprise")
 ggplot(filter(alimRA_typeAn, TypeAbreg %in% head(arrange(summarise(group_by(alimRA_typeAn,TypeAbreg),sumInTypeAn=sum(nInTypeAn)),desc(sumInTypeAn)),5)$TypeAbreg), aes(x=annee, y=nInTypeAn, color=TypeAbreg)) +
-  geom_line() +labs(y="Nombre de créations",title="Evolution du nombre de créations d’entreprises par année pour les 5 types comptant le plus de créations d’entreprises au total",color="Type d'entreprise")
+  geom_line() +labs(y="Nombre de créations",title="Evolution du nombre de créations d’entreprises",color="Type d'entreprise")
   
 ```
  
@@ -277,32 +333,76 @@ ggplot(filter(alimRA_typeAn, TypeAbreg %in% head(arrange(summarise(group_by(alim
 - Essayez de représenter à travers cette carte l’année de création de l’entreprise (de la manière qui vous semblera la plus pertinente).
 
 ```{r map1, echo=TRUE, message=FALSE, warning=FALSE}
-#tuto: https://r-spatial.org/r/2018/10/25/ggplot2-sf-2.html
-#install.packages("rgeos")
-library(sf)
-library(rgeos)
 
+# tuto tmap: https://cran.r-project.org/web/packages/tmap/vignettes/tmap-getstarted.html
 
+############## recuperation des positions des boulangeries-pâtisseries ##############
 
 points = st_as_sf(filter(select(alimRA_entr,longitude,latitude,dateCreationEtablissement,TypeAbreg), !is.na(longitude) & !is.na(latitude) & latitude>40 & TypeAbreg=="boulPatiss") , coords = c("longitude", "latitude"), crs = 4326, agr = "constant")
 
-points$decenieCreationEtablissement = toString(floor(year(ymd(points$dateCreationEtablissement))/10)*10)
+#ajout de la decenie de creation
+points=mutate(points, decenieCreationEtablissement=floor(year(ymd(dateCreationEtablissement))/10)*10)
 
-dpt=st_read(paste0("E:/Geonum/M2/R/DM_R-main/data/","dpt.shp")) %>%  st_set_crs(2154)
-dpt = st_transform(dpt, st_crs(4326))
 
-library(tmap)
+############## recuperation des départements avec webservice ##############
 
-tmap_mode("view")
+#lien vers le service WFS
+wfs <- "https://datacarto.datara.gouv.fr/wfs/6ef4743b-1ec7-4615-a1a7-d7a7bbfd8b42"
 
+# connexion au service
+client <- WFSClient$new(wfs,serviceVersion = "2.0.0")
+
+# recuperation des possibilité du serveur
+caps= client$getCapabilities()
+
+# Liste des couches "featuretype" disponibles
+featuretype= caps$getFeatureTypes() 
+
+# recupération de la couche departement (ici la seule dispo)
+departement= featuretype[[1]]$getFeatures()
+
+# recuperation des départements concernés, données légères : on peut filtrer après le telechargement
+departement=filter(departement, insee_dep %in% c('01','38','42','43','69'))
+
+
+#TEST : une autre manière de recuperer une couche en WFS 
+#
+#test <- wfs %>% 
+#  parse_url() %>% 
+#  list_merge(query = list(service = "wfs",
+#                          version = "2.0.0", 
+#                          request = "GetFeature",
+#                          typeName = "departement_adminexp_s_r84",
+#                          cql_filter="insee_dep = 01"
+#                          )) %>% 
+#  build_url() %>% 
+#  read_sf()
+
+
+
+# pour des cartes statiques
+tmap_mode("plot")
+# TEST: tmap_mode("view") pour des cartes interactives
+
+
+##############  creation de la carte   #################
+
+# cartes trop petites mais je voulais essayer les facets
+
+tm_shape(departement)+
+  tm_polygons("nom_dep",legend.show = FALSE)+
+  tm_text("nom_dep", size = 1, col="white")+
+  tm_legend(show = FALSE)+
 tm_shape(points)+
+  # une carte par décénie
   tm_facets(by="decenieCreationEtablissement")+
-  tm_dots() + 
-  tm_layout(main.title="Ouverture de boulangerie dans les departements 01,38,42,43,69", main.title.color="slateblue")+
-  tm_scale_bar()+
-  tm_compass()
-```
+  tm_dots(col="red") + 
+  tm_layout(main.title="Ouverture de boulangeries par décénie", main.title.size = 1.2 , main.title.position = "center", bg.color = "lightgrey", inner.margins = c(.05, .02, .02, .02))+
+  tm_scale_bar(position=c("center", "bottom"))+
+  tm_compass(position=c("left", "top"))
+  
 
+```
 
 
 # 3.6.2 Carte des proportions de commerce par commune
@@ -312,17 +412,59 @@ tm_shape(points)+
 - Produisez une carte montrant le nombre de commerces par commune. Vous aurez sans doute à retravailler l’échelle colorée…
 
 ```{r map2, echo=TRUE, message=FALSE, warning=FALSE}
-communes=st_read(paste0("E:/Geonum/M2/R/DM_R-main/data/","com.shp")) %>%  st_set_crs(2154)
-communes = st_transform(communes, st_crs(4326))
-tmap_mode("view")
+
+###############" recuperation des communes de ARA avec webservice #####################
+
+
+# TEST: ouvertue des commune en shapefile
+#communes=st_read(paste0("data/","com.shp")) %>%  st_set_crs(2154)
+#communes = st_transform(communes, st_crs(4326))
+
+
+
+#lien vers le service WFS
+wfs <- "https://wxs.ign.fr/beta/geoportail/wfs"
+
+# recuperation des données en json avec filtre car les données sont lourdes
+r = GET("https://wxs.ign.fr/beta/geoportail/wfs", 
+  query = list(service = "wfs",
+               version = "2.0.0",
+               request = "GetFeature",
+               typeName = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:commune",
+               outputFormat="application/json",
+               CQL_FILTER="code_dep IN ('01', '38')"
+               ))
+
+# conversion en simple features
+communes=read_sf(r)
+
+# Rhaaa! téléchargement en plusieurs fois car le serveur limite à 1000 features
+r = GET("https://wxs.ign.fr/beta/geoportail/wfs", 
+  query = list(service = "wfs",
+               version = "2.0.0",
+               request = "GetFeature",
+               typeName = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:commune",
+               outputFormat="application/json",
+               CQL_FILTER="code_dep IN ('42', '43','69')"
+               ))
+
+# regroupement des 2 objet sf
+communes=rbind(communes,read_sf(r))
 
 commerces = st_as_sf(filter(select(alimRA_entr,longitude,latitude,siren),!is.na(longitude) & !is.na(latitude)), coords = c("longitude", "latitude"), crs = 4326, agr = "constant")
 
+# solve the problem: "invalid spherical geometry"
+sf::sf_use_s2(FALSE)
 
-final=summarise(group_by(st_join(communes,commerces),insee_com),n_commerce=n())
+# spatial join for each commune
+final=summarise(group_by(st_join(communes,commerces),nom_com),n_commerce=n())
 
-tm_shape(final)+tm_polygons(col="n_commerce",style = "log10_pretty",title="Nombre de commerce par commune") +
-  tm_layout(legend.outside = TRUE)+
+# create map, choix d'une legende en log10 car les ecarts sont tres importants
+tm_shape(final)+
+  tm_polygons(col="n_commerce",style = "log10_pretty", title="Nombre de commerces") +
+  tm_layout(legend.outside = TRUE, main.title="Commerces dans les departements 01,38,42,43,69", main.title.size=1.5,main.title.position="left", bg.color = "lightgrey", inner.margins = c(.05, .02, .02, .02))+
+tm_shape(departement)+
+  tm_borders("black", lwd = .7)+
   tm_scale_bar(position="center")+
-  tm_compass()
+  tm_compass(position=c("left","top"))
 ```
